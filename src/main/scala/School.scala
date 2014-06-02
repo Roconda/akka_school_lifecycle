@@ -3,12 +3,13 @@ import akka.pattern.ask
 import akka.event.Logging
 import akka.util.Timeout
 import akka.actor.PoisonPill
+import scala.collection.mutable._
+import scala.collection.mutable.SynchronizedSet
 import scala.concurrent.Await
 import scala.concurrent.duration._
 import scala.util.Random
-import scala.collection.mutable.Queue
 
-case class studentCase(actor: ActorRef, failed: Int)
+case class studentCase(actor: ActorRef)
 case class homework(name: String)
 case class giveHomework()
 case class nakijken(name: String)
@@ -30,35 +31,41 @@ class Student extends Actor {
 }
 
 class Teacher extends Actor {
-  var subjects = List("OO Patronen", "C", "C++", "Calculus", "Logica", "Statistiek", "Algebra", "Vrije studieruimte")
+  var subjects = "OO Patronen" :: "C" :: "C++" :: "Calculus" :: "Logica" :: "Statistiek" :: "Algebra" :: "Vrije studieruimte" :: List()
   val log = Logging(context.system, this)
-  val students = Queue.empty[studentCase]
+  var students = new HashSet[studentCase] with SynchronizedSet[studentCase]
 
-  for (i <- 0 to 2) students += studentCase(context.actorOf(Props[Student]), 0)
+  for (i <- 0 to 400) students += studentCase(context.actorOf(Props[Student]))
 
   override def receive = {
     case giveHomework() => {
-      log info("Huiswerk geven aan student")
-      val random = new Random
-      val subject = subjects(random nextInt(subjects length))
+      if(students.size > 0) {
+        log info("Huiswerk geven aan student " + students.size)
+        val random = new Random
+        val subject = subjects(random nextInt(subjects length))
 
-      students map(x => {
-        import context.dispatcher
-        implicit val timeout = Timeout(1000 millisecond)
-        val cijferFuture = x.actor ? homework(subject)
+        students.map(x => {
+          import context.dispatcher
+          implicit val timeout = Timeout(500 millisecond)
+          val cijferFuture = x.actor ? homework(subject)
 
-        cijferFuture onSuccess {
-          case y => {
-            val cijfer = y.asInstanceOf[Integer]
-            if (cijfer < 5.5) {
-              log warning("ONVOLDOENDE: " + cijfer)
-              x.actor ! PoisonPill
-              students.
+          cijferFuture onSuccess {
+            case y => {
+              val cijfer = y.asInstanceOf[Integer]
+              if (cijfer < 5.5) {
+                log info("ONVOLDOENDE: " + cijfer)
+                x.actor ! PoisonPill
+                val actor = x.actor
+
+                students.remove(x)
+              }
             }
           }
-        }
 
-      })
+        })
+      }else{
+        log info("My job is done here")
+      }
     }
 
   }
