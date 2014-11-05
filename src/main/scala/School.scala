@@ -5,14 +5,12 @@ import akka.util.Timeout
 import akka.actor.PoisonPill
 import scala.collection.mutable._
 import scala.collection.mutable.SynchronizedSet
-import scala.concurrent.Await
 import scala.concurrent.duration._
 import scala.util.Random
 
 case class studentCase(actor: ActorRef)
 case class homework(name: String)
 case class giveHomework()
-case class nakijken(name: String)
 
 class Student extends Actor {
   val log = Logging(context.system, this)
@@ -40,7 +38,7 @@ class Teacher extends Actor {
   override def receive = {
     case giveHomework() => {
       if(students.size > 0) {
-        log info("Huiswerk geven aan student " + students.size)
+        log info("Huiswerk geven aan student ")
         val random = new Random
         val subject = subjects(random nextInt(subjects length))
 
@@ -65,6 +63,7 @@ class Teacher extends Actor {
         })
       }else{
         log info("My job is done here")
+        self ! PoisonPill
       }
     }
 
